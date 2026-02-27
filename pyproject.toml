@@ -1,0 +1,12 @@
+[project]
+name = "networth-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.3.3",
+    "plotly>=6.5.2",
+    "streamlit>=1.54.0",
+    "yfinance>=1.2.0",
+]

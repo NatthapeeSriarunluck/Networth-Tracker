@@ -144,7 +144,7 @@ MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
 
 # --- SIDEBAR: ARCHITECT CONTROL ---
 with st.sidebar:
-    st.markdown("<h2 style='font-family:Syncopate; color:#d4af37; font-size:1.2rem;'>SYSTEM // CONFIG</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='font-family:Syncopate; color:#d4af37; font-size:1.2rem;'>SYSTEM CONFIG</h2>", unsafe_allow_html=True)
     currency = st.selectbox("BASE CURRENCY", ["THB", "USD"])
     
     rate = 1.0
@@ -155,7 +155,7 @@ with st.sidebar:
         st.caption(f"LIVE RATE: 1 USD = {rate:.2f} THB")
 
     st.markdown("<div class='gold-divider'></div>", unsafe_allow_html=True)
-    st.markdown("<h2 style='font-family:Syncopate; color:#d4af37; font-size:1.2rem;'>ARCHITECT // INPUT</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='font-family:Syncopate; color:#d4af37; font-size:1.2rem;'>ARCHITECT INPUT</h2>", unsafe_allow_html=True)
     
     with st.form("entry_form"):
         year_input = st.number_input("YEAR", min_value=2000, max_value=2100, value=datetime.now().year, step=1)
@@ -204,7 +204,7 @@ if submitted:
     st.rerun()
 
 # --- MAIN DASHBOARD ---
-st.markdown("<h1 class='main-header'>AURUM // NET WORTH ARCHITECTURE</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>AURUM NET WORTH ARCHITECTURE</h1>", unsafe_allow_html=True)
 
 if not df.empty:
     display_df = df.copy()
@@ -243,7 +243,7 @@ if not df.empty:
     c1, c2 = st.columns([2, 1])
 
     with c1:
-        st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>PROJECTION // GROWTH CURVE ({currency})</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>PROJECTION GROWTH CURVE ({currency})</h3>", unsafe_allow_html=True)
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=display_df['Date'], y=display_df['Total Net Worth'],
@@ -264,7 +264,7 @@ if not df.empty:
         st.plotly_chart(fig, use_container_width=True)
 
     with c2:
-        st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>ALLOCATION // STRUCTURE ({currency})</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>ALLOCATION STRUCTURE ({currency})</h3>", unsafe_allow_html=True)
         labels = ["Cash", "Investments", "Real Estate", "Other"]
         values = [latest['Cash'], latest['Investments'], latest['Real Estate'], latest['Other Assets']]
         
@@ -285,7 +285,7 @@ if not df.empty:
 
     # Ledger
     st.markdown("<div style='margin-top:40px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>HISTORICAL LEDGER // RAW DATA ({currency})</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>HISTORICAL LEDGER RAW DATA ({currency})</h3>", unsafe_allow_html=True)
     
     ledger_df = display_df.drop(columns=['Total Net Worth', 'Date']).sort_values(['Year', 'Month'], ascending=False)
     # Map month numbers to names for better readability in the table
@@ -305,6 +305,6 @@ else:
 # Footer Overlay
 st.markdown(f"""
 <div style='position: fixed; bottom: 20px; right: 20px; font-family: Space Mono; font-size: 0.7rem; color: #333;'>
-    SYSTEM // VER 2.0.26 // FX_RATE: {rate:.2f} // ENCRYPTED_VAULT
+    SYSTEM VER 2.0.26 FX_RATE: {rate:.2f} ENCRYPTED_VAULT
 </div>
 """, unsafe_allow_html=True)

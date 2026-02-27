@@ -55,6 +55,10 @@ export default function App() {
   const [fxRate, setFxRate] = useState(35.0)
   const [loading, setLoading] = useState(true)
   const [insightIdx, setInsightIdx] = useState(0)
+  const [goal, setGoal] = useState(() => {
+    const saved = localStorage.getItem('aurum_goal')
+    return saved ? parseFloat(saved) : 1000000
+  })
   const [form, setForm] = useState<NetWorthEntry>({
     Year: new Date().getFullYear(),
     Month: new Date().getMonth() + 1,
@@ -67,6 +71,10 @@ export default function App() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem('aurum_goal', goal.toString())
+  }, [goal])
 
   const fetchData = async () => {
     try {
@@ -145,6 +153,57 @@ export default function App() {
   const previousNetWorth = data.length > 1 ? data[data.length - 2].netWorth || 0 : 0;
   const growthPercentage = previousNetWorth > 0 ? ((netWorth - previousNetWorth) / previousNetWorth) * 100 : 0;
 
+  // Dynamic Chart Options
+  const chartOptions = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { 
+      legend: { display: false }, 
+      tooltip: { 
+        backgroundColor: '#111', 
+        titleFont: { family: 'Syncopate', size: 14 }, 
+        bodyFont: { family: 'Outfit', size: 16 }, 
+        padding: 15, 
+        borderColor: colors.accentPrimary, 
+        borderWidth: 1 
+      } 
+    },
+    scales: {
+      x: { 
+        grid: { display: false }, 
+        ticks: { color: '#888', font: { family: 'Space Mono', size: 12 }, padding: 10 } 
+      },
+      y: { 
+        suggestedMax: goal,
+        grid: { color: '#1a1a1a' }, 
+        ticks: { 
+          color: '#888', 
+          font: { family: 'Outfit', size: 14 }, 
+          padding: 10,
+          callback: (v: any) => '฿' + (v/1000).toLocaleString() + 'k' 
+        } 
+      }
+    },
+    interaction: { intersect: false, mode: 'index' as const },
+  }
+
+  const doughnutOptions = {
+    responsive: true, maintainAspectRatio: false, cutout: '80%',
+    plugins: { 
+      legend: { 
+        position: 'bottom' as const, 
+        labels: { color: '#aaa', font: { family: 'Outfit', size: 14 }, padding: 30, usePointStyle: true, pointStyle: 'circle' } 
+      },
+      tooltip: { 
+        backgroundColor: '#111', 
+        titleFont: { family: 'Syncopate', size: 14 }, 
+        bodyFont: { family: 'Outfit', size: 16 }, 
+        padding: 15, 
+        borderColor: colors.accentPrimary, 
+        borderWidth: 1 
+      }
+    }
+  }
+
   // Chart Configs
   const lineData = {
     labels: data.map(d => `${MONTH_NAMES[d.Month-1].substring(0,3)} ${d.Year}`),
@@ -153,12 +212,12 @@ export default function App() {
       data: data.map(d => d.netWorth || 0),
       borderColor: colors.accentPrimary,
       backgroundColor: 'rgba(212, 175, 55, 0.08)',
-      borderWidth: 2,
+      borderWidth: 3,
       pointBackgroundColor: colors.bgBase,
       pointBorderColor: colors.accentPrimary,
       pointBorderWidth: 2,
-      pointRadius: 4,
-      pointHoverRadius: 6,
+      pointRadius: 5,
+      pointHoverRadius: 8,
       fill: true,
       tension: 0.4
     }]
@@ -171,7 +230,7 @@ export default function App() {
       backgroundColor: [colors.accentPrimary, colors.accentSecondary, colors.accentTertiary],
       borderColor: colors.bgBase,
       borderWidth: 3,
-      hoverOffset: 10
+      hoverOffset: 15
     }]
   }
 
@@ -184,31 +243,48 @@ export default function App() {
       <Container maxW="container.xl" pt={10} position="relative" zIndex={1}>
         
         {/* Header */}
-        <Flex justify="space-between" align="flex-end" borderBottom={`1px solid ${colors.border}`} pb={6} mb={10}>
-          <HStack spacing={4}>
-            <Icon as={FiLayers} boxSize={8} color={colors.accentPrimary} />
+        <Flex justify="space-between" align="flex-end" borderBottom={`1px solid ${colors.border}`} pb={8} mb={12}>
+          <HStack spacing={6}>
+            <Icon as={FiLayers} boxSize={10} color={colors.accentPrimary} />
             <Heading as="h1" fontFamily="Syncopate" letterSpacing="0.4em" color={colors.textMain} size="xl" fontWeight="300">
               AURUM<Text as="span" color={colors.accentPrimary} fontWeight="700">.</Text>
             </Heading>
           </HStack>
-          <VStack align="flex-end" spacing={1}>
-            <Badge colorScheme="yellow" variant="outline" fontFamily="Space Mono" px={3} py={1} borderRadius="full">SECURE</Badge>
-            <Text fontFamily="Space Mono" fontSize="xs" color={colors.textMuted} letterSpacing="0.1em">SYS_V2 // FX: {fxRate.toFixed(2)} THB</Text>
+          <VStack align="flex-end" spacing={2}>
+            <HStack spacing={4}>
+              <VStack align="end" spacing={0}>
+                <Text fontFamily="Space Mono" fontSize="xs" color={colors.textMuted} letterSpacing="0.1em">FINANCIAL GOAL</Text>
+                <Input 
+                  variant="unstyled" 
+                  textAlign="right"
+                  fontFamily="Outfit"
+                  fontSize="xl"
+                  fontWeight="600"
+                  color={colors.accentPrimary}
+                  w="180px"
+                  value={goal}
+                  type="number"
+                  onChange={e => setGoal(parseFloat(e.target.value) || 0)}
+                />
+              </VStack>
+              <Badge colorScheme="yellow" variant="outline" fontFamily="Space Mono" px={4} py={2} borderRadius="full" fontSize="xs">SECURE</Badge>
+            </HStack>
+            <Text fontFamily="Space Mono" fontSize="sm" color={colors.textMuted} letterSpacing="0.1em">SYS_V2 // FX: {fxRate.toFixed(2)} THB</Text>
           </VStack>
         </Flex>
 
         <Tabs variant="unstyled" colorScheme="yellow">
-          <TabList gap={8} mb={10} borderBottom={`1px solid ${colors.border}`}>
+          <TabList gap={12} mb={12} borderBottom={`1px solid ${colors.border}`}>
             <Tab 
-              _selected={{ color: colors.accentPrimary, borderBottom: `2px solid ${colors.accentPrimary}`, pb: "14px" }} 
-              p={4} pb="16px" fontFamily="Syncopate" fontSize="sm" letterSpacing="0.2em" color={colors.textMuted}
+              _selected={{ color: colors.accentPrimary, borderBottom: `3px solid ${colors.accentPrimary}`, pb: "18px" }} 
+              p={4} pb="20px" fontFamily="Syncopate" fontSize="md" letterSpacing="0.3em" color={colors.textMuted}
               transition="all 0.3s ease"
             >
               ARCHITECTURE
             </Tab>
             <Tab 
-              _selected={{ color: colors.accentPrimary, borderBottom: `2px solid ${colors.accentPrimary}`, pb: "14px" }} 
-              p={4} pb="16px" fontFamily="Syncopate" fontSize="sm" letterSpacing="0.2em" color={colors.textMuted}
+              _selected={{ color: colors.accentPrimary, borderBottom: `3px solid ${colors.accentPrimary}`, pb: "18px" }} 
+              p={4} pb="20px" fontFamily="Syncopate" fontSize="md" letterSpacing="0.3em" color={colors.textMuted}
               transition="all 0.3s ease"
             >
               DEEP INSIGHTS
@@ -219,94 +295,101 @@ export default function App() {
             {/* --- ARCHITECTURE TAB --- */}
             <TabPanel p={0}>
               {/* Top Stats */}
-              <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={6} mb={10}>
-                <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`} position="relative" overflow="hidden">
-                  <Box position="absolute" top={0} left={0} w="full" h="2px" bg={colors.accentPrimary} />
+              <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={8} mb={12}>
+                <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`} position="relative" overflow="hidden">
+                  <Box position="absolute" top={0} left={0} w="full" h="3px" bg={colors.accentPrimary} />
                   <Stat>
-                    <StatLabel fontFamily="Space Mono" fontSize="xs" color={colors.textMuted} letterSpacing="0.2em" mb={4}>AGGREGATED EQUITY</StatLabel>
-                    <StatNumber fontFamily="Syncopate" fontSize="4xl" fontWeight="300" mb={2}>
-                      <Text as="span" color={colors.textMuted} fontSize="2xl" mr={2}>฿</Text>
+                    <StatLabel fontFamily="Space Mono" fontSize="sm" color={colors.textMuted} letterSpacing="0.2em" mb={6}>AGGREGATED EQUITY</StatLabel>
+                    <StatNumber fontFamily="Outfit" fontSize="5xl" fontWeight="600" mb={4} className="tabular-nums">
+                      <Text as="span" color={colors.textMuted} fontSize="3xl" mr={3}>฿</Text>
                       {netWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </StatNumber>
-                    <StatHelpText fontFamily="Space Mono" fontSize="sm" m={0}>
-                      <StatArrow type={(latest.delta || 0) >= 0 ? 'increase' : 'decrease'} color={(latest.delta || 0) >= 0 ? colors.success : colors.danger} />
-                      <Text as="span" color={(latest.delta || 0) >= 0 ? colors.success : colors.danger}>
-                        {Math.abs(latest.delta || 0).toLocaleString()} ({growthPercentage.toFixed(2)}%)
-                      </Text>
-                    </StatHelpText>
+                    <Flex justify="space-between" align="center" mb={4}>
+                      <StatHelpText fontFamily="Space Mono" fontSize="md" m={0}>
+                        <StatArrow type={(latest.delta || 0) >= 0 ? 'increase' : 'decrease'} color={(latest.delta || 0) >= 0 ? colors.success : colors.danger} />
+                        <Text as="span" color={(latest.delta || 0) >= 0 ? colors.success : colors.danger} className="tabular-nums">
+                          {Math.abs(latest.delta || 0).toLocaleString()} ({growthPercentage.toFixed(2)}%)
+                        </Text>
+                      </StatHelpText>
+                      <Text fontFamily="Space Mono" fontSize="xs" color={colors.textMuted}>{((netWorth / goal) * 100).toFixed(1)}% OF GOAL</Text>
+                    </Flex>
+                    <Progress value={(netWorth / goal) * 100} size="sm" colorScheme="yellow" borderRadius="full" bg="rgba(255,255,255,0.05)" />
                   </Stat>
                 </Box>
 
-                <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`}>
+                <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`}>
                   <Stat>
-                    <StatLabel fontFamily="Space Mono" fontSize="xs" color={colors.textMuted} letterSpacing="0.2em" mb={4}>GROSS EXPOSURE</StatLabel>
-                    <StatNumber fontFamily="Syncopate" fontSize="3xl" fontWeight="300">
-                      <Text as="span" color={colors.textMuted} fontSize="xl" mr={2}>฿</Text>
+                    <StatLabel fontFamily="Space Mono" fontSize="sm" color={colors.textMuted} letterSpacing="0.2em" mb={6}>GROSS EXPOSURE</StatLabel>
+                    <StatNumber fontFamily="Outfit" fontSize="4xl" fontWeight="600" className="tabular-nums">
+                      <Text as="span" color={colors.textMuted} fontSize="2xl" mr={3}>฿</Text>
                       {totalAssets.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </StatNumber>
                   </Stat>
                 </Box>
 
-                <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`}>
+                <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`}>
                   <Stat>
-                    <StatLabel fontFamily="Space Mono" fontSize="xs" color={colors.textMuted} letterSpacing="0.2em" mb={4}>TOTAL OBLIGATIONS</StatLabel>
-                    <StatNumber fontFamily="Syncopate" fontSize="3xl" fontWeight="300">
-                      <Text as="span" color={colors.textMuted} fontSize="xl" mr={2}>฿</Text>
+                    <StatLabel fontFamily="Space Mono" fontSize="sm" color={colors.textMuted} letterSpacing="0.2em" mb={6}>TOTAL OBLIGATIONS</StatLabel>
+                    <StatNumber fontFamily="Outfit" fontSize="4xl" fontWeight="600" className="tabular-nums">
+                      <Text as="span" color={colors.textMuted} fontSize="2xl" mr={3}>฿</Text>
                       {(latest['Liabilities'] || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </StatNumber>
                     {totalAssets > 0 && (
-                       <Progress mt={4} value={((latest['Liabilities'] || 0) / totalAssets) * 100} size="xs" colorScheme="red" bg="#222" />
+                       <VStack align="start" mt={6} spacing={2}>
+                         <Text fontFamily="Space Mono" fontSize="xs" color={colors.textMuted}>LEVERAGE RATIO: {((latest['Liabilities'] || 0) / totalAssets * 100).toFixed(1)}%</Text>
+                         <Progress value={((latest['Liabilities'] || 0) / totalAssets) * 100} size="xs" colorScheme="red" w="full" bg="#222" borderRadius="full" />
+                       </VStack>
                     )}
                   </Stat>
                 </Box>
               </Grid>
 
               {/* Charts */}
-              <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={6} mb={10}>
-                <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`}>
-                  <Flex justify="space-between" align="center" mb={6}>
-                    <Text fontSize="xs" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">GROWTH TRAJECTORY</Text>
-                    <Icon as={FiActivity} color={colors.textMuted} />
+              <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8} mb={12}>
+                <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`}>
+                  <Flex justify="space-between" align="center" mb={8}>
+                    <Text fontSize="sm" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">GROWTH TRAJECTORY VS GOAL</Text>
+                    <Icon as={FiActivity} color={colors.accentPrimary} boxSize={5} />
                   </Flex>
-                  <Box h="350px"><Line data={lineData} options={chartOptions} /></Box>
+                  <Box h="450px"><Line data={lineData} options={chartOptions} /></Box>
                 </Box>
                 
-                <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`}>
-                  <Flex justify="space-between" align="center" mb={6}>
-                    <Text fontSize="xs" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">ASSET ALLOCATION</Text>
-                    <Icon as={FiBriefcase} color={colors.textMuted} />
+                <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`}>
+                  <Flex justify="space-between" align="center" mb={8}>
+                    <Text fontSize="sm" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">ASSET ALLOCATION</Text>
+                    <Icon as={FiBriefcase} color={colors.accentPrimary} boxSize={5} />
                   </Flex>
-                  <Box h="300px"><Doughnut data={doughnutData} options={doughnutOptions} /></Box>
+                  <Box h="350px"><Doughnut data={doughnutData} options={doughnutOptions} /></Box>
                 </Box>
               </Grid>
 
               {/* Ledger */}
-              <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`}>
-                <Text fontSize="xs" color={colors.textMuted} mb={6} fontFamily="Space Mono" letterSpacing="0.2em">IMMUTABLE LEDGER</Text>
+              <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`}>
+                <Text fontSize="sm" color={colors.textMuted} mb={8} fontFamily="Space Mono" letterSpacing="0.2em">IMMUTABLE LEDGER</Text>
                 <TableContainer>
-                  <Table variant="unstyled" size="sm">
+                  <Table variant="unstyled" size="md">
                     <Thead>
-                      <Tr borderBottom={`1px solid ${colors.border}`}>
-                        <Th color={colors.textMuted} pb={4} fontFamily="Space Mono" letterSpacing="0.1em">PERIOD</Th>
-                        <Th color={colors.textMuted} pb={4} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric>CASH</Th>
-                        <Th color={colors.textMuted} pb={4} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric>BITCOIN</Th>
-                        <Th color={colors.textMuted} pb={4} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric>PORTFOLIO</Th>
-                        <Th color={colors.accentPrimary} pb={4} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric>NET WORTH</Th>
-                        <Th color={colors.textMuted} pb={4} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric>CHANGE</Th>
+                      <Tr borderBottom={`2px solid ${colors.border}`}>
+                        <Th color={colors.textMuted} pb={6} fontFamily="Space Mono" letterSpacing="0.1em" fontSize="xs">PERIOD</Th>
+                        <Th color={colors.textMuted} pb={6} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric fontSize="xs">CASH</Th>
+                        <Th color={colors.textMuted} pb={6} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric fontSize="xs">BITCOIN</Th>
+                        <Th color={colors.textMuted} pb={6} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric fontSize="xs">PORTFOLIO</Th>
+                        <Th color={colors.accentPrimary} pb={6} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric fontSize="xs">NET WORTH</Th>
+                        <Th color={colors.textMuted} pb={6} fontFamily="Space Mono" letterSpacing="0.1em" isNumeric fontSize="xs">CHANGE</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
                       {data.slice().reverse().map((row, i) => (
                         <Tr key={i} _hover={{ bg: colors.bgCardHover }} transition="background 0.2s">
-                          <Td py={4} fontFamily="Inter" color={colors.textMain}>{MONTH_NAMES[row.Month-1]} {row.Year}</Td>
-                          <Td py={4} fontFamily="Space Mono" color={colors.textMuted} isNumeric>{row['Cash Reserves'].toLocaleString()}</Td>
-                          <Td py={4} fontFamily="Space Mono" color={colors.textMuted} isNumeric>{row['Bitcoin'].toLocaleString()}</Td>
-                          <Td py={4} fontFamily="Space Mono" color={colors.textMuted} isNumeric>{row['U.S Portfolio'].toLocaleString()}</Td>
-                          <Td py={4} fontFamily="Space Mono" color={colors.textMain} isNumeric fontWeight="bold">{(row.netWorth || 0).toLocaleString()}</Td>
-                          <Td py={4} fontFamily="Space Mono" isNumeric>
+                          <Td py={6} fontFamily="Inter" color={colors.textMain} fontSize="md">{MONTH_NAMES[row.Month-1]} {row.Year}</Td>
+                          <Td py={6} fontFamily="Outfit" className="tabular-nums" color={colors.textMuted} isNumeric fontSize="md">{row['Cash Reserves'].toLocaleString()}</Td>
+                          <Td py={6} fontFamily="Outfit" className="tabular-nums" color={colors.textMuted} isNumeric fontSize="md">{row['Bitcoin'].toLocaleString()}</Td>
+                          <Td py={6} fontFamily="Outfit" className="tabular-nums" color={colors.textMuted} isNumeric fontSize="md">{row['U.S Portfolio'].toLocaleString()}</Td>
+                          <Td py={6} fontFamily="Outfit" className="tabular-nums" color={colors.textMain} isNumeric fontWeight="600" fontSize="lg">{(row.netWorth || 0).toLocaleString()}</Td>
+                          <Td py={6} fontFamily="Outfit" className="tabular-nums" isNumeric>
                             <Badge 
                               colorScheme={(row.delta || 0) >= 0 ? "green" : "red"} 
-                              variant="subtle" px={2} py={1} borderRadius="md"
+                              variant="subtle" px={3} py={1.5} borderRadius="lg" fontFamily="Outfit" fontSize="sm"
                             >
                               {(row.delta || 0) !== 0 ? ((row.delta || 0) > 0 ? '▲' : '▼') + ' ' + Math.abs(row.delta || 0).toLocaleString() : '--'}
                             </Badge>
@@ -321,23 +404,23 @@ export default function App() {
 
             {/* --- INSIGHTS TAB --- */}
             <TabPanel p={0}>
-              <Box p={8} bg={colors.bgCard} borderRadius="xl" border={`1px solid ${colors.border}`} mb={10}>
-                <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
-                  <VStack align="start" spacing={2} flex={1} minW="250px">
-                    <Text fontSize="xs" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">ANALYSIS PERIOD</Text>
+              <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`} mb={12}>
+                <Flex justify="space-between" align="center" flexWrap="wrap" gap={6}>
+                  <VStack align="start" spacing={3} flex={1} minW="300px">
+                    <Text fontSize="sm" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">ANALYSIS PERIOD</Text>
                     <Select 
-                      variant="flushed" bg="#1a1a1a" color={colors.textMain} fontFamily="Inter" size="lg"
+                      variant="flushed" bg="#1a1a1a" color={colors.textMain} fontFamily="Inter" size="lg" fontSize="xl" h="60px"
                       _hover={{ bg: "#222" }} _focus={{ borderBottomColor: colors.accentPrimary }}
                       value={insightIdx} onChange={e => setInsightIdx(parseInt(e.target.value))}
                     >
                       {data.map((d, i) => <option key={i} value={i} style={{background: '#000'}}>{MONTH_NAMES[d.Month-1]} {d.Year} Analysis</option>)}
                     </Select>
                   </VStack>
-                  <VStack align="end" spacing={1}>
-                    <Text fontSize="xs" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">PERIOD PERFORMANCE</Text>
-                    <HStack>
-                      <Icon as={(data[insightIdx]?.delta || 0) >= 0 ? FiTrendingUp : FiTrendingDown} color={(data[insightIdx]?.delta || 0) >= 0 ? colors.success : colors.danger} boxSize={6} />
-                      <Text fontSize="3xl" fontFamily="Syncopate" fontWeight="300" color={(data[insightIdx]?.delta || 0) >= 0 ? colors.textMain : colors.danger}>
+                  <VStack align="end" spacing={2}>
+                    <Text fontSize="sm" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.2em">PERIOD PERFORMANCE</Text>
+                    <HStack spacing={4}>
+                      <Icon as={(data[insightIdx]?.delta || 0) >= 0 ? FiTrendingUp : FiTrendingDown} color={(data[insightIdx]?.delta || 0) >= 0 ? colors.success : colors.danger} boxSize={8} />
+                      <Text fontSize="4xl" fontFamily="Outfit" fontWeight="600" className="tabular-nums" color={(data[insightIdx]?.delta || 0) >= 0 ? colors.textMain : colors.danger}>
                         ฿{Math.abs(data[insightIdx]?.delta || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </Text>
                     </HStack>
@@ -345,7 +428,7 @@ export default function App() {
                 </Flex>
               </Box>
 
-              <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={6}>
+              <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={8}>
                 <InsightCard 
                   title="CASH POSITION" icon={FiDollarSign} color={colors.accentPrimary}
                   current={data[insightIdx]?.["Cash Reserves"]} previous={insightIdx > 0 ? data[insightIdx-1]?.["Cash Reserves"] : undefined} 
@@ -368,54 +451,54 @@ export default function App() {
         </Tabs>
 
         {/* Input Form Section */}
-        <Box mt={20} borderTop={`1px solid ${colors.border}`} pt={20}>
-          <Box p={10} bg={colors.bgCard} borderRadius="2xl" border={`1px solid ${colors.border}`} position="relative" overflow="hidden">
-            <Box position="absolute" top={0} right={0} w="150px" h="150px" bg={colors.accentPrimary} filter="blur(100px)" opacity={0.1} pointerEvents="none" />
+        <Box mt={24} borderTop={`1px solid ${colors.border}`} pt={24}>
+          <Box p={12} bg={colors.bgCard} borderRadius="3xl" border={`1px solid ${colors.border}`} position="relative" overflow="hidden">
+            <Box position="absolute" top={0} right={0} w="200px" h="200px" bg={colors.accentPrimary} filter="blur(150px)" opacity={0.1} pointerEvents="none" />
             
-            <HStack mb={8} spacing={3}>
-              <Icon as={FiPlus} color={colors.accentPrimary} />
-              <Text fontSize="sm" color={colors.textMain} fontFamily="Space Mono" letterSpacing="0.2em">ARCHITECT INPUT</Text>
+            <HStack mb={10} spacing={4}>
+              <Icon as={FiPlus} color={colors.accentPrimary} boxSize={6} />
+              <Text fontSize="lg" color={colors.textMain} fontFamily="Space Mono" letterSpacing="0.2em">ARCHITECT INPUT</Text>
             </HStack>
             
             <form onSubmit={handleSave}>
-              <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={8} mb={10}>
+              <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={10} mb={12}>
                 <FormControl label="YEAR">
-                  <Input type="number" value={form.Year} onChange={e => { const v = parseInt(e.target.value); setForm({...form, Year: v}); syncForm(v, form.Month); }} />
+                  <Input type="number" fontSize="lg" value={form.Year} onChange={e => { const v = parseInt(e.target.value); setForm({...form, Year: v}); syncForm(v, form.Month); }} />
                 </FormControl>
                 <FormControl label="MONTH">
-                  <Select value={form.Month} onChange={e => { const v = parseInt(e.target.value); setForm({...form, Month: v}); syncForm(form.Year, v); }}>
+                  <Select fontSize="lg" value={form.Month} onChange={e => { const v = parseInt(e.target.value); setForm({...form, Month: v}); syncForm(form.Year, v); }}>
                     {MONTH_NAMES.map((m, i) => <option key={i} value={i+1} style={{background: '#000'}}>{m}</option>)}
                   </Select>
                 </FormControl>
                 <FormControl label="CASH RESERVES (THB)">
-                  <Input type="number" value={form["Cash Reserves"]} onChange={e => setForm({...form, "Cash Reserves": parseFloat(e.target.value) || 0})} />
+                  <Input type="number" fontSize="lg" value={form["Cash Reserves"]} onChange={e => setForm({...form, "Cash Reserves": parseFloat(e.target.value) || 0})} />
                 </FormControl>
                 <FormControl label="BITCOIN (THB)">
-                  <Input type="number" value={form["Bitcoin"]} onChange={e => setForm({...form, "Bitcoin": parseFloat(e.target.value) || 0})} />
+                  <Input type="number" fontSize="lg" value={form["Bitcoin"]} onChange={e => setForm({...form, "Bitcoin": parseFloat(e.target.value) || 0})} />
                 </FormControl>
                 <FormControl label="U.S PORTFOLIO (THB)">
-                  <Input type="number" value={form["U.S Portfolio"]} onChange={e => setForm({...form, "U.S Portfolio": parseFloat(e.target.value) || 0})} />
+                  <Input type="number" fontSize="lg" value={form["U.S Portfolio"]} onChange={e => setForm({...form, "U.S Portfolio": parseFloat(e.target.value) || 0})} />
                 </FormControl>
                 <FormControl label="TOTAL OBLIGATIONS (THB)">
-                  <Input type="number" value={form["Liabilities"]} onChange={e => setForm({...form, "Liabilities": parseFloat(e.target.value) || 0})} />
+                  <Input type="number" fontSize="lg" value={form["Liabilities"]} onChange={e => setForm({...form, "Liabilities": parseFloat(e.target.value) || 0})} />
                 </FormControl>
               </Grid>
 
-              <Divider mb={8} borderColor={colors.border} />
+              <Divider mb={10} borderColor={colors.border} />
 
-              <Flex justify="space-between" align="center" flexWrap="wrap" gap={6}>
-                <VStack align="start" spacing={1}>
-                  <Text fontSize="xs" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.1em">PROJECTED NET WORTH</Text>
-                  <Text fontSize="3xl" color={colors.accentPrimary} fontFamily="Syncopate" fontWeight="300">
+              <Flex justify="space-between" align="center" flexWrap="wrap" gap={8}>
+                <VStack align="start" spacing={2}>
+                  <Text fontSize="sm" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.1em">PROJECTED NET WORTH</Text>
+                  <Text fontSize="5xl" color={colors.accentPrimary} fontFamily="Outfit" fontWeight="600" className="tabular-nums">
                     ฿{((form["Cash Reserves"] + form["Bitcoin"] + form["U.S Portfolio"]) - form["Liabilities"]).toLocaleString(undefined, {minimumFractionDigits: 2})}
                   </Text>
                 </VStack>
                 <Button 
                   type="submit" 
                   bg={colors.textMain} color={colors.bgBase}
-                  borderRadius="full" h="56px" px={10} 
-                  fontFamily="Space Mono" fontSize="sm" letterSpacing="0.1em" fontWeight="bold"
-                  _hover={{ bg: colors.accentPrimary, transform: "translateY(-2px)", boxShadow: "0 10px 20px -10px rgba(212,175,55,0.4)" }}
+                  borderRadius="full" h="70px" px={12} 
+                  fontFamily="Space Mono" fontSize="md" letterSpacing="0.1em" fontWeight="bold"
+                  _hover={{ bg: colors.accentPrimary, transform: "translateY(-3px)", boxShadow: "0 15px 30px -10px rgba(212,175,55,0.5)" }}
                   _active={{ transform: "translateY(0)" }}
                   transition="all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
                 >
@@ -444,10 +527,10 @@ function InsightCard({ title, current, previous, color, icon, inverse = false }:
         <Text fontSize="xs" color={colors.textMuted} fontFamily="Space Mono" letterSpacing="0.1em">{title}</Text>
         <Icon as={icon} color={color} boxSize={5} opacity={0.8} />
       </Flex>
-      <Text fontSize="2xl" color={colors.textMain} fontFamily="Syncopate" fontWeight="300" mb={3}>
+      <Text fontSize="2xl" color={colors.textMain} fontFamily="Outfit" fontWeight="500" className="tabular-nums" mb={3}>
         ฿{(current || 0).toLocaleString()}
       </Text>
-      <Badge colorScheme={isGood ? 'green' : 'red'} variant="subtle" px={2} py={1} borderRadius="md" fontFamily="Space Mono">
+      <Badge colorScheme={isGood ? 'green' : 'red'} variant="subtle" px={2} py={1} borderRadius="md" fontFamily="Outfit" className="tabular-nums">
         {diff !== 0 ? (isPositive ? '▲' : '▼') + ' ฿' + Math.abs(diff).toLocaleString() : 'NO CHANGE'}
       </Badge>
     </Box>
@@ -469,23 +552,4 @@ function FormControl({ label, children }: { label: string, children: React.React
       </Box>
     </VStack>
   )
-}
-
-// --- Chart Options ---
-const chartOptions = {
-  responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111', titleFont: { family: 'Syncopate' }, bodyFont: { family: 'Space Mono' }, padding: 12, borderColor: '#333', borderWidth: 1 } },
-  scales: {
-    x: { grid: { display: false }, ticks: { color: '#666', font: { family: 'Space Mono', size: 10 } } },
-    y: { grid: { color: '#1a1a1a' }, ticks: { color: '#666', font: { family: 'Space Mono', size: 10 }, callback: (v: any) => '฿' + (v/1000).toFixed(0) + 'k' } }
-  },
-  interaction: { intersect: false, mode: 'index' as const },
-}
-
-const doughnutOptions = {
-  responsive: true, maintainAspectRatio: false, cutout: '80%',
-  plugins: { 
-    legend: { position: 'bottom' as const, labels: { color: '#888', font: { family: 'Space Mono', size: 11 }, padding: 20, usePointStyle: true, pointStyle: 'circle' } },
-    tooltip: { backgroundColor: '#111', titleFont: { family: 'Syncopate' }, bodyFont: { family: 'Space Mono' }, padding: 12, borderColor: '#333', borderWidth: 1 }
-  }
 }

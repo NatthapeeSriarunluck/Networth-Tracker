@@ -5,6 +5,11 @@ import plotly.graph_objects as go
 import os
 import yfinance as yf
 from datetime import datetime
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # --- CONFIG & STYLING ---
 st.set_page_config(
@@ -111,25 +116,53 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- DATA ENGINE ---
-DATA_FILE = "networth_data.csv"
+# --- DATA ENGINE (SUPABASE) ---
+url: str = os.getenv("SUPABASE_URL")
+key: str = os.getenv("SUPABASE_KEY")
+TABLE_NAME = "networth_entries"
 ASSET_COLS = ["Cash Reserves", "Bitcoin", "U.S Portfolio"]
 DATA_COLS = ["Year", "Month"] + ASSET_COLS + ["Liabilities"]
 
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        df = pd.DataFrame(columns=DATA_COLS)
-        df.to_csv(DATA_FILE, index=False)
-    else:
-        df = pd.read_csv(DATA_FILE)
-        # Handle migration if file exists with old columns
-        if not set(DATA_COLS).issubset(df.columns):
-            df = pd.DataFrame(columns=DATA_COLS)
-            df.to_csv(DATA_FILE, index=False)
-    return df
+# Create supabase client
+supabase: Client = create_client(url, key) if url and key else None
 
-def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
+def load_data():
+    if not supabase:
+        return pd.DataFrame(columns=DATA_COLS)
+    
+    try:
+        response = supabase.table(TABLE_NAME).select("*").execute()
+        if response.data:
+            df = pd.DataFrame(response.data)
+            # Rename for display if needed (supabase might lowercase keys)
+            # Ensure columns match our expected names
+            return df.sort_values(by=["Year", "Month"])
+        return pd.DataFrame(columns=DATA_COLS)
+    except Exception as e:
+        st.error(f"Supabase fetch error: {e}")
+        return pd.DataFrame(columns=DATA_COLS)
+
+def save_entry(data):
+    if not supabase:
+        st.error("Supabase client not initialized. Check .env")
+        return False
+    
+    try:
+        # Check for existing record
+        mask = {"Year": data["Year"], "Month": data["Month"]}
+        response = supabase.table(TABLE_NAME).select("id").match(mask).execute()
+        
+        if response.data:
+            # Update existing
+            entry_id = response.data[0]['id']
+            supabase.table(TABLE_NAME).update(data).eq("id", entry_id).execute()
+        else:
+            # Insert new
+            supabase.table(TABLE_NAME).insert(data).execute()
+        return True
+    except Exception as e:
+        st.error(f"Supabase save error: {e}")
+        return False
 
 @st.cache_data(ttl=3600)
 def get_usd_thb_rate():
@@ -164,7 +197,6 @@ with st.sidebar:
         month_input = st.selectbox("MONTH", range(1, 13), format_func=lambda x: MONTH_NAMES[x-1], index=datetime.now().month-1)
         st.caption(f"Enter values in {currency}")
         
-        # Dynamic form based on new categories
         cash = st.number_input("CASH RESERVES", min_value=0.0, step=1000.0)
         bitcoin = st.number_input("BITCOIN", min_value=0.0, step=0.0001, format="%.4f")
         us_portfolio = st.number_input("U.S PORTFOLIO", min_value=0.0, step=1000.0)
@@ -173,10 +205,12 @@ with st.sidebar:
         submitted = st.form_submit_button("RECORD POSITION")
 
 # --- APP LOGIC ---
+if not supabase:
+    st.warning("SUPABASE CONNECTION REQUIRED. PLEASE CONFIGURE .ENV")
+
 df = load_data()
 
 if submitted:
-    # Convert input to THB for storage
     stored_vals = [val * rate if currency == "USD" else val for val in [cash, bitcoin, us_portfolio, liabilities]]
 
     new_entry = {
@@ -188,17 +222,9 @@ if submitted:
         "Liabilities": stored_vals[3]
     }
     
-    mask = (df['Year'] == year_input) & (df['Month'] == month_input)
-    if mask.any():
-        df.loc[mask, ASSET_COLS + ["Liabilities"]] = stored_vals
-    else:
-        df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-    
-    df['Year'] = df['Year'].astype(int)
-    df['Month'] = df['Month'].astype(int)
-    df = df.sort_values(by=["Year", "Month"])
-    save_data(df)
-    st.rerun()
+    if save_entry(new_entry):
+        st.sidebar.success("POSITION SECURED")
+        st.rerun()
 
 # --- MAIN DASHBOARD ---
 st.markdown("<h1 class='main-header'>AURUM NET WORTH ARCHITECTURE</h1>", unsafe_allow_html=True)
@@ -209,7 +235,7 @@ if not df.empty:
     
     convert_cols = ASSET_COLS + ["Liabilities"]
     for col in convert_cols:
-        display_df[col] = display_df[col] / rate
+        display_df[col] = display_df[col].astype(float) / rate
 
     display_df['Total Net Worth'] = display_df[ASSET_COLS].sum(axis=1) - display_df['Liabilities']
     display_df['Date'] = display_df.apply(lambda x: f"{MONTH_NAMES[int(x['Month'])-1][:3]} {int(x['Year'])}", axis=1)
@@ -222,7 +248,7 @@ if not df.empty:
     
     with m1:
         delta = (latest['Total Net Worth'] - prev['Total Net Worth']) if prev is not None else None
-        st.metric("AGGREGATED EQUITY", f"{symbol}{latest['Total Net Worth']:,.2f}", delta=f"{delta:,.2f}" if delta else None)
+        st.metric("AGGREGATED EQUITY", f"{symbol}{latest['Total Net Worth']:,.2f}", delta=f"{delta:,.0f}" if delta else None)
     
     with m2:
         total_assets = latest[ASSET_COLS].sum()
@@ -279,7 +305,7 @@ if not df.empty:
     st.markdown("<div style='margin-top:40px;'></div>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>HISTORICAL LEDGER RAW DATA ({currency})</h3>", unsafe_allow_html=True)
     
-    ledger_df = display_df.drop(columns=['Total Net Worth', 'Date']).sort_values(['Year', 'Month'], ascending=False)
+    ledger_df = display_df.drop(columns=['Total Net Worth', 'Date', 'id' if 'id' in display_df else '']).sort_values(['Year', 'Month'], ascending=False)
     ledger_df['Month'] = ledger_df['Month'].apply(lambda x: MONTH_NAMES[int(x)-1])
     
     st.dataframe(
@@ -290,7 +316,7 @@ if not df.empty:
 else:
     st.markdown("<div style='text-align:center; padding: 100px; border: 1px dashed #333;'>", unsafe_allow_html=True)
     st.markdown("<h2 style='font-family:Syncopate; color:#444;'>NO POSITIONS RECORDED</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='font-family:Space Mono; color:#666;'>INITIALIZE YOUR ARCHITECTURE IN THE SIDEBAR</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-family:Space Mono; color:#666;'>INITIALize YOUR ARCHITECTURE IN THE SIDEBAR</p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # Footer Overlay

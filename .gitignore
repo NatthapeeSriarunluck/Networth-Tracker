@@ -41,3 +41,4 @@ networth_data.csv
 .streamlit/
 uv.lock
 pyproject.toml
+.env

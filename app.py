@@ -64,11 +64,6 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    div[data-testid="stMetric"]:hover {
-        border-color: var(--accent-gold);
-        background-color: var(--accent-gold-muted);
-    }
-
     div[data-testid="stMetricLabel"] {
         font-family: 'Space Mono', monospace !important;
         text-transform: uppercase;
@@ -121,10 +116,13 @@ DATA_FILE = "networth_data.csv"
 
 def load_data():
     if not os.path.exists(DATA_FILE):
-        df = pd.DataFrame(columns=["Year", "Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"])
+        df = pd.DataFrame(columns=["Year", "Month", "Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"])
         df.to_csv(DATA_FILE, index=False)
     else:
         df = pd.read_csv(DATA_FILE)
+        if "Month" not in df.columns:
+            df["Month"] = 12 # Default to Dec for old year-only records
+            df.to_csv(DATA_FILE, index=False)
     return df
 
 def save_data(df):
@@ -133,14 +131,16 @@ def save_data(df):
 @st.cache_data(ttl=3600) # Cache rate for 1 hour
 def get_usd_thb_rate():
     try:
-        # USDTHB=X is the ticker for 1 USD in THB
         data = yf.Ticker("USDTHB=X").history(period="1d")
         if not data.empty:
             return data['Close'].iloc[-1]
-        return 35.0 # Fallback
-    except Exception as e:
-        st.error(f"Rate fetch error: {e}")
         return 35.0
+    except Exception as e:
+        return 35.0
+
+# Month names for selection
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", 
+               "July", "August", "September", "October", "November", "December"]
 
 # --- SIDEBAR: ARCHITECT CONTROL ---
 with st.sidebar:
@@ -158,7 +158,8 @@ with st.sidebar:
     st.markdown("<h2 style='font-family:Syncopate; color:#d4af37; font-size:1.2rem;'>ARCHITECT // INPUT</h2>", unsafe_allow_html=True)
     
     with st.form("entry_form"):
-        year = st.number_input("YEAR", min_value=2000, max_value=2100, value=datetime.now().year, step=1)
+        year_input = st.number_input("YEAR", min_value=2000, max_value=2100, value=datetime.now().year, step=1)
+        month_input = st.selectbox("MONTH", range(1, 13), format_func=lambda x: MONTH_NAMES[x-1], index=datetime.now().month-1)
         st.caption(f"Enter values in {currency}")
         cash = st.number_input("CASH RESERVES", min_value=0.0, step=1000.0)
         investments = st.number_input("PORTFOLIO ASSETS", min_value=0.0, step=1000.0)
@@ -172,7 +173,6 @@ with st.sidebar:
 df = load_data()
 
 if submitted:
-    # Always store in THB internally for consistency
     stored_cash = cash * rate if currency == "USD" else cash
     stored_inv = investments * rate if currency == "USD" else investments
     stored_re = real_estate * rate if currency == "USD" else real_estate
@@ -180,7 +180,8 @@ if submitted:
     stored_liab = liabilities * rate if currency == "USD" else liabilities
 
     new_entry = {
-        "Year": int(year), 
+        "Year": int(year_input), 
+        "Month": int(month_input),
         "Cash": stored_cash, 
         "Investments": stored_inv,
         "Real Estate": stored_re, 
@@ -188,15 +189,17 @@ if submitted:
         "Liabilities": stored_liab
     }
     
-    if year in df['Year'].values:
-        df.loc[df['Year'] == year, ["Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"]] = [
+    mask = (df['Year'] == year_input) & (df['Month'] == month_input)
+    if mask.any():
+        df.loc[mask, ["Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"]] = [
             stored_cash, stored_inv, stored_re, stored_oa, stored_liab
         ]
     else:
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
     
     df['Year'] = df['Year'].astype(int)
-    df = df.sort_values(by="Year")
+    df['Month'] = df['Month'].astype(int)
+    df = df.sort_values(by=["Year", "Month"])
     save_data(df)
     st.rerun()
 
@@ -204,13 +207,18 @@ if submitted:
 st.markdown("<h1 class='main-header'>AURUM // NET WORTH ARCHITECTURE</h1>", unsafe_allow_html=True)
 
 if not df.empty:
-    # Create display dataframe by converting THB back to selected currency
     display_df = df.copy()
+    # Sort correctly before processing
+    display_df = display_df.sort_values(by=["Year", "Month"])
+    
     cols_to_convert = ["Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"]
     for col in cols_to_convert:
-        display_df[col] = df[col] / rate
+        display_df[col] = display_df[col] / rate
 
     display_df['Total Net Worth'] = display_df['Cash'] + display_df['Investments'] + display_df['Real Estate'] + display_df['Other Assets'] - display_df['Liabilities']
+    
+    # Create a Date column for plotting
+    display_df['Date'] = display_df.apply(lambda x: f"{MONTH_NAMES[int(x['Month'])-1][:3]} {int(x['Year'])}", axis=1)
     
     latest = display_df.iloc[-1]
     prev = display_df.iloc[-2] if len(display_df) > 1 else None
@@ -238,7 +246,7 @@ if not df.empty:
         st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>PROJECTION // GROWTH CURVE ({currency})</h3>", unsafe_allow_html=True)
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=display_df['Year'], y=display_df['Total Net Worth'],
+            x=display_df['Date'], y=display_df['Total Net Worth'],
             mode='lines+markers',
             line=dict(color='#d4af37', width=3),
             marker=dict(size=10, color='#fff', line=dict(color='#d4af37', width=2)),
@@ -279,9 +287,12 @@ if not df.empty:
     st.markdown("<div style='margin-top:40px;'></div>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>HISTORICAL LEDGER // RAW DATA ({currency})</h3>", unsafe_allow_html=True)
     
-    ledger_df = display_df.drop(columns=['Total Net Worth']).sort_values('Year', ascending=False)
+    ledger_df = display_df.drop(columns=['Total Net Worth', 'Date']).sort_values(['Year', 'Month'], ascending=False)
+    # Map month numbers to names for better readability in the table
+    ledger_df['Month'] = ledger_df['Month'].apply(lambda x: MONTH_NAMES[int(x)-1])
+    
     st.dataframe(
-        ledger_df.style.format("{:,.0f}"),
+        ledger_df.style.format({col: "{:,.0f}" for col in cols_to_convert + ["Year"]}),
         use_container_width=True
     )
 

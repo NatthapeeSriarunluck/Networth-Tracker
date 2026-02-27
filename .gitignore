@@ -42,3 +42,5 @@ networth_data.csv
 uv.lock
 pyproject.toml
 .env
+.gemini/
+flask_app.py

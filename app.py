@@ -113,32 +113,34 @@ st.markdown("""
 
 # --- DATA ENGINE ---
 DATA_FILE = "networth_data.csv"
+ASSET_COLS = ["Cash Reserves", "Bitcoin", "U.S Portfolio"]
+DATA_COLS = ["Year", "Month"] + ASSET_COLS + ["Liabilities"]
 
 def load_data():
     if not os.path.exists(DATA_FILE):
-        df = pd.DataFrame(columns=["Year", "Month", "Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"])
+        df = pd.DataFrame(columns=DATA_COLS)
         df.to_csv(DATA_FILE, index=False)
     else:
         df = pd.read_csv(DATA_FILE)
-        if "Month" not in df.columns:
-            df["Month"] = 12 # Default to Dec for old year-only records
+        # Handle migration if file exists with old columns
+        if not set(DATA_COLS).issubset(df.columns):
+            df = pd.DataFrame(columns=DATA_COLS)
             df.to_csv(DATA_FILE, index=False)
     return df
 
 def save_data(df):
     df.to_csv(DATA_FILE, index=False)
 
-@st.cache_data(ttl=3600) # Cache rate for 1 hour
+@st.cache_data(ttl=3600)
 def get_usd_thb_rate():
     try:
         data = yf.Ticker("USDTHB=X").history(period="1d")
         if not data.empty:
             return data['Close'].iloc[-1]
         return 35.0
-    except Exception as e:
+    except Exception:
         return 35.0
 
-# Month names for selection
 MONTH_NAMES = ["January", "February", "March", "April", "May", "June", 
                "July", "August", "September", "October", "November", "December"]
 
@@ -161,10 +163,11 @@ with st.sidebar:
         year_input = st.number_input("YEAR", min_value=2000, max_value=2100, value=datetime.now().year, step=1)
         month_input = st.selectbox("MONTH", range(1, 13), format_func=lambda x: MONTH_NAMES[x-1], index=datetime.now().month-1)
         st.caption(f"Enter values in {currency}")
+        
+        # Dynamic form based on new categories
         cash = st.number_input("CASH RESERVES", min_value=0.0, step=1000.0)
-        investments = st.number_input("PORTFOLIO ASSETS", min_value=0.0, step=1000.0)
-        real_estate = st.number_input("IMMOBILIER", min_value=0.0, step=1000.0)
-        other_assets = st.number_input("ALTERNATIVE ASSETS", min_value=0.0, step=1000.0)
+        bitcoin = st.number_input("BITCOIN", min_value=0.0, step=0.0001, format="%.4f")
+        us_portfolio = st.number_input("U.S PORTFOLIO", min_value=0.0, step=1000.0)
         liabilities = st.number_input("TOTAL OBLIGATIONS", min_value=0.0, step=1000.0)
         
         submitted = st.form_submit_button("RECORD POSITION")
@@ -173,27 +176,21 @@ with st.sidebar:
 df = load_data()
 
 if submitted:
-    stored_cash = cash * rate if currency == "USD" else cash
-    stored_inv = investments * rate if currency == "USD" else investments
-    stored_re = real_estate * rate if currency == "USD" else real_estate
-    stored_oa = other_assets * rate if currency == "USD" else other_assets
-    stored_liab = liabilities * rate if currency == "USD" else liabilities
+    # Convert input to THB for storage
+    stored_vals = [val * rate if currency == "USD" else val for val in [cash, bitcoin, us_portfolio, liabilities]]
 
     new_entry = {
         "Year": int(year_input), 
         "Month": int(month_input),
-        "Cash": stored_cash, 
-        "Investments": stored_inv,
-        "Real Estate": stored_re, 
-        "Other Assets": stored_oa, 
-        "Liabilities": stored_liab
+        "Cash Reserves": stored_vals[0], 
+        "Bitcoin": stored_vals[1],
+        "U.S Portfolio": stored_vals[2], 
+        "Liabilities": stored_vals[3]
     }
     
     mask = (df['Year'] == year_input) & (df['Month'] == month_input)
     if mask.any():
-        df.loc[mask, ["Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"]] = [
-            stored_cash, stored_inv, stored_re, stored_oa, stored_liab
-        ]
+        df.loc[mask, ASSET_COLS + ["Liabilities"]] = stored_vals
     else:
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
     
@@ -208,16 +205,13 @@ st.markdown("<h1 class='main-header'>AURUM NET WORTH ARCHITECTURE</h1>", unsafe_
 
 if not df.empty:
     display_df = df.copy()
-    # Sort correctly before processing
     display_df = display_df.sort_values(by=["Year", "Month"])
     
-    cols_to_convert = ["Cash", "Investments", "Real Estate", "Other Assets", "Liabilities"]
-    for col in cols_to_convert:
+    convert_cols = ASSET_COLS + ["Liabilities"]
+    for col in convert_cols:
         display_df[col] = display_df[col] / rate
 
-    display_df['Total Net Worth'] = display_df['Cash'] + display_df['Investments'] + display_df['Real Estate'] + display_df['Other Assets'] - display_df['Liabilities']
-    
-    # Create a Date column for plotting
+    display_df['Total Net Worth'] = display_df[ASSET_COLS].sum(axis=1) - display_df['Liabilities']
     display_df['Date'] = display_df.apply(lambda x: f"{MONTH_NAMES[int(x['Month'])-1][:3]} {int(x['Year'])}", axis=1)
     
     latest = display_df.iloc[-1]
@@ -228,11 +222,11 @@ if not df.empty:
     
     with m1:
         delta = (latest['Total Net Worth'] - prev['Total Net Worth']) if prev is not None else None
-        st.metric("AGGREGATED EQUITY", f"{symbol}{latest['Total Net Worth']:,.0f}", delta=f"{delta:,.0f}" if delta else None)
+        st.metric("AGGREGATED EQUITY", f"{symbol}{latest['Total Net Worth']:,.2f}", delta=f"{delta:,.2f}" if delta else None)
     
     with m2:
-        total_assets = latest['Cash'] + latest['Investments'] + latest['Real Estate'] + latest['Other Assets']
-        st.metric("GROSS EXPOSURE", f"{symbol}{total_assets:,.0f}")
+        total_assets = latest[ASSET_COLS].sum()
+        st.metric("GROSS EXPOSURE", f"{symbol}{total_assets:,.2f}")
         
     with m3:
         st.metric("LEVERAGE / DEBT", f"{symbol}{latest['Liabilities']:,.0f}", delta_color="inverse")
@@ -254,8 +248,7 @@ if not df.empty:
             fillcolor='rgba(212, 175, 55, 0.05)'
         ))
         fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=0, r=0, t=20, b=0),
             xaxis=dict(showgrid=False, color='#555', tickfont=dict(family='Space Mono')),
             yaxis=dict(showgrid=True, gridcolor='#222', color='#555', tickfont=dict(family='Space Mono')),
@@ -265,13 +258,12 @@ if not df.empty:
 
     with c2:
         st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>ALLOCATION STRUCTURE ({currency})</h3>", unsafe_allow_html=True)
-        labels = ["Cash", "Investments", "Real Estate", "Other"]
-        values = [latest['Cash'], latest['Investments'], latest['Real Estate'], latest['Other Assets']]
+        values = [latest[col] for col in ASSET_COLS]
         
         fig_pie = go.Figure(data=[go.Pie(
-            labels=labels, values=values,
+            labels=ASSET_COLS, values=values,
             hole=.6,
-            marker=dict(colors=['#1a1a1a', '#d4af37', '#444', '#888']),
+            marker=dict(colors=['#1a1a1a', '#d4af37', '#888']),
             textinfo='none'
         )])
         fig_pie.update_layout(
@@ -288,11 +280,10 @@ if not df.empty:
     st.markdown(f"<h3 style='font-family:Space Mono; font-size:0.9rem; color:#888;'>HISTORICAL LEDGER RAW DATA ({currency})</h3>", unsafe_allow_html=True)
     
     ledger_df = display_df.drop(columns=['Total Net Worth', 'Date']).sort_values(['Year', 'Month'], ascending=False)
-    # Map month numbers to names for better readability in the table
     ledger_df['Month'] = ledger_df['Month'].apply(lambda x: MONTH_NAMES[int(x)-1])
     
     st.dataframe(
-        ledger_df.style.format({col: "{:,.0f}" for col in cols_to_convert + ["Year"]}),
+        ledger_df.style.format({col: "{:,.2f}" for col in convert_cols + ["Year"]}),
         use_container_width=True
     )
 

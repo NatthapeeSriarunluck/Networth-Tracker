@@ -1,0 +1,21 @@
+{
+  "name": "aurum-networth-architecture",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Industrial Luxury Net Worth Architecture (Turborepo)",
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "api:dev": "turbo run dev --filter=aurum-api",
+    "web:dev": "turbo run dev --filter=aurum-web"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.2"
+  }
+}

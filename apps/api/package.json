@@ -1,0 +1,10 @@
+{
+  "name": "aurum-api",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "../../.venv/bin/python3 main.py",
+    "test": "../../.venv/bin/python3 test_supabase.py",
+    "import": "../../.venv/bin/python3 import_data_to_supabase.py"
+  }
+}

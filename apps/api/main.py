@@ -18,6 +18,9 @@ app = FastAPI(
     version="3.0.0"
 )
 
+# Export for Vercel
+handler = app
+
 # CORS Configuration for React Frontend
 app.add_middleware(
     CORSMiddleware,
